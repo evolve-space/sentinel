@@ -8,7 +8,7 @@
 ![OSINT](https://img.shields.io/badge/Type-OSINT-blueviolet?style=flat-square)
 
 > 🛡️ Part of the **DOMINI Suite** — a two-tool passive OSINT framework.  
-> SENTINEL analyzes IPs. [DOMINUS](https://github.com/youruser/dominus) analyzes domains.  
+> SENTINEL analyzes IPs. [DOMINUS](https://github.com/KristinaSabitova/dominus) analyzes domains.  
 > Together they map the full attack surface of any target.
 
 ---
@@ -17,7 +17,7 @@
 
 SENTINEL is a passive OSINT threat intelligence tool focused on **IP addresses**. Given an IP, it aggregates reputation data, geolocation, abuse history, active threat feeds, cloud provider context, and Tor/VPN detection — then calculates a transparent **Threat Score from 0 to 100** and generates a fully standalone HTML report with an interactive geolocalization map.
 
-Where [DOMINUS](https://github.com/youruser/dominus) asks *"how exposed is this organization?"*, **SENTINEL asks "is this IP a threat?"**
+Where [DOMINUS](https://github.com/KristinaSabitova/dominus) asks *"how exposed is this organization?"*, **SENTINEL asks "is this IP a threat?"**
 
 ---
 
@@ -126,7 +126,7 @@ python sentinel.py 54.38.163.115
 
 This kind of layered analysis — domain configuration + IP reputation — is standard practice in professional security assessments. DOMINUS and SENTINEL automate it completely.
 
-> 🔗 See [DOMINUS](https://github.com/youruser/dominus) for domain-level reconnaissance.
+> 🔗 See [DOMINUS](https://github.com/KristinaSabitova/dominus) for domain-level reconnaissance.
 
 ---
 
@@ -152,7 +152,7 @@ A single `.html` file. Open it anywhere. Send it to anyone.
 ## Installation
 
 ```bash
-git clone https://github.com/youruser/sentinel.git
+git clone https://github.com/KristinaSabitova/sentinel.git
 cd sentinel
 python3 -m venv .venv
 source .venv/bin/activate
@@ -244,7 +244,7 @@ Always obtain proper authorization before scanning infrastructure you do not own
 Built for an academic cybersecurity practice at **Evolve Academy**.
 Designed to demonstrate IP-level threat intelligence as a professional OSINT capability.
 
-Part of the **DOMINI Suite** alongside [DOMINUS](https://github.com/youruser/dominus).
+Part of the **DOMINI Suite** alongside [DOMINUS](https://github.com/KristinaSabitova/dominus).
 
 ---
 
