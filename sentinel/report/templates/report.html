@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SENTINEL Report - {{ payload.ip }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      --bg: #080B10;
+      --surface: #0D1117;
+      --surface-2: #131920;
+      --line: rgba(0, 212, 255, 0.18);
+      --accent: #00D4FF;
+      --text: #E6EDF3;
+      --muted: #8B949E;
+      --danger: #FF3B5C;
+      --warn: #F2C94C;
+      --safe: #2DD4A6;
+      --mono: "JetBrains Mono", monospace;
+      --sans: "Inter", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 50% 80px, rgba(0, 212, 255, 0.13), transparent 260px),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      letter-spacing: 0;
+    }
+    .wrap { width: min(1000px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 44px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 44px; }
+    .brand { font-weight: 800; letter-spacing: 0.12em; color: var(--accent); }
+    .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button, select {
+      border: 1px solid var(--line);
+      background: rgba(13, 17, 23, 0.78);
+      color: var(--text);
+      border-radius: 8px;
+      height: 38px;
+      padding: 0 12px;
+      font: 600 13px var(--sans);
+      cursor: pointer;
+    }
+    button:hover, select:hover { border-color: rgba(0, 212, 255, 0.55); box-shadow: 0 0 22px rgba(0, 212, 255, 0.12); }
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 210px;
+      gap: 36px;
+      align-items: center;
+      min-height: 260px;
+      margin-bottom: 42px;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      width: 290px;
+      height: 290px;
+      left: 6%;
+      top: -72px;
+      background: radial-gradient(circle, rgba(0, 212, 255, 0.18), transparent 66%);
+      filter: blur(10px);
+      z-index: -1;
+    }
+    .ip { font-family: var(--mono); font-size: 48px; line-height: 1; font-weight: 800; margin: 0 0 18px; overflow-wrap: anywhere; }
+    .subline { color: var(--muted); font-size: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 22px;
+      border: 1px solid rgba(0, 212, 255, 0.45);
+      background: rgba(0, 212, 255, 0.08);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    .tor-alert {
+      display: none;
+      margin-top: 18px;
+      max-width: 460px;
+      border: 1px solid rgba(255, 59, 92, 0.55);
+      background: rgba(255, 59, 92, 0.13);
+      color: #FFDDE4;
+      border-radius: 8px;
+      padding: 13px 15px;
+      font-weight: 800;
+      animation: pulse-alert 1.7s ease-in-out infinite;
+    }
+    .tor-alert.show { display: block; }
+    @keyframes pulse-alert {
+      0%, 100% { box-shadow: 0 0 0 rgba(255, 59, 92, 0); }
+      50% { box-shadow: 0 0 28px rgba(255, 59, 92, 0.24); }
+    }
+    .score-ring { position: relative; width: 190px; height: 190px; justify-self: end; }
+    .score-ring svg { width: 190px; height: 190px; transform: rotate(-90deg); }
+    .score-ring circle { fill: none; stroke-width: 12; }
+    .score-bg { stroke: rgba(255, 255, 255, 0.08); }
+    .score-fg {
+      stroke: var(--accent);
+      stroke-linecap: round;
+      stroke-dasharray: 502;
+      stroke-dashoffset: 502;
+      filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.6));
+      animation: score-draw 1.2s ease-out forwards;
+    }
+    @keyframes score-draw { to { stroke-dashoffset: var(--score-offset); } }
+    .score-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+    .score-number { font: 800 44px var(--mono); }
+    .score-label { color: var(--muted); font-size: 12px; text-transform: uppercase; font-weight: 700; }
+    section { margin-top: 36px; }
+    h2 { margin: 0 0 16px; font-size: 20px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card, details {
+      background: linear-gradient(180deg, rgba(19, 25, 32, 0.96), rgba(13, 17, 23, 0.96));
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+    }
+    .kpi { padding: 18px; }
+    .kpi-value { font: 800 32px var(--mono); color: var(--accent); }
+    .kpi-label { color: var(--muted); margin-top: 6px; font-size: 13px; }
+    #map { height: 390px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: var(--surface); overflow: hidden; }
+    .leaflet-container { background: var(--surface); }
+    .pulse-marker {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 rgba(0, 212, 255, 0.9);
+      animation: marker-pulse 1.5s infinite;
+      border: 2px solid #DDF8FF;
+    }
+    @keyframes marker-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.65); }
+      70% { box-shadow: 0 0 0 22px rgba(0, 212, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+    }
+    .timeline { display: grid; gap: 12px; }
+    .bar-row { display: grid; grid-template-columns: 210px 1fr 44px; gap: 12px; align-items: center; }
+    .bar-track { height: 12px; background: rgba(255,255,255,0.07); border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; width: var(--w); background: linear-gradient(90deg, rgba(0, 212, 255, 0.38), #00D4FF); border-radius: 999px; }
+    .cloud-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .cloud-card { padding: 16px; min-height: 96px; border-color: rgba(0, 212, 255, 0.13); }
+    .cloud-card.active { border-color: rgba(0, 212, 255, 0.65); box-shadow: inset 0 0 28px rgba(0, 212, 255, 0.08); }
+    .cloud-icon { font-size: 24px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 8px; }
+    th, td { padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,0.07); text-align: left; }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+    td.mono { font-family: var(--mono); }
+    tr.safe td:first-child { color: var(--safe); }
+    tr.warning td:first-child { color: var(--warn); }
+    tr.danger td:first-child { color: var(--danger); }
+    .recommendations { display: grid; gap: 12px; counter-reset: rec; }
+    .rec { padding: 16px; display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; }
+    .rec::before { counter-increment: rec; content: counter(rec); width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 212, 255, 0.12); color: var(--accent); font: 800 13px var(--mono); }
+    .priority { border-radius: 999px; padding: 6px 9px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+    .p-high { background: rgba(255, 59, 92, 0.16); color: #FF9AAA; }
+    .p-medium { background: rgba(242, 201, 76, 0.15); color: #F7DA79; }
+    .p-low { background: rgba(45, 212, 166, 0.13); color: #7BE8C7; }
+    details { padding: 0; overflow: hidden; }
+    summary { padding: 16px; cursor: pointer; color: var(--accent); font-weight: 700; }
+    pre { margin: 0; padding: 0 16px 16px; overflow: auto; color: #C9D1D9; font: 12px/1.5 var(--mono); }
+    footer { margin-top: 42px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid rgba(255,255,255,0.07); padding-top: 22px; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    @media (max-width: 780px) {
+      .hero { grid-template-columns: 1fr; }
+      .score-ring { justify-self: start; }
+      .ip { font-size: 38px; }
+      .kpis, .cloud-grid { grid-template-columns: 1fr; }
+      .bar-row { grid-template-columns: 1fr; gap: 7px; }
+      .rec { grid-template-columns: 34px 1fr; }
+      .priority { justify-self: start; grid-column: 2; }
+    }
+  </style>
+</head>
+<body>
+  {% set geo = payload.results.get("geo", {}) %}
+  {% set abuse = payload.results.get("abuse", {}).get("data", {}) %}
+  {% set threat = payload.results.get("threat", {}) %}
+  {% set ports = payload.results.get("ports", {}) %}
+  {% set cloud = payload.results.get("cloud", {}) %}
+  {% set tor = payload.results.get("tor", {}) %}
+  {% set score = payload.score.score %}
+  {% set score_offset = 502 - (502 * score / 100) %}
+  {% set proxy_hint = abuse.get("usageType", "") in ["Data Center/Web Hosting/Transit", "Data Center/Web Hosting/Transit"] %}
+  <div class="wrap">
+    <header>
+      <div class="brand">SENTINEL</div>
+      <div class="actions">
+        <select id="langSelect" aria-label="Language">
+          <option value="es">ES</option>
+          <option value="ru">RU</option>
+        </select>
+        <button id="exportJson" data-i18n="export">Exportar JSON</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="hero">
+        <div>
+          <h1 class="ip">{{ payload.ip }}</h1>
+          <div class="subline">
+            <span id="flag"></span>
+            <span>{{ geo.get("country", "País desconocido") }}</span>
+            <span>•</span>
+            <span>{{ geo.get("city", "Ciudad desconocida") }}</span>
+            <span>•</span>
+            <span class="mono">{{ geo.get("as", "ASN no disponible") }}</span>
+          </div>
+          <div class="badge"><span data-i18n="threatLevel">Nivel de amenaza</span>: {{ payload.score.label }}</div>
+          <div class="tor-alert {% if tor.get('is_tor') or proxy_hint %}show{% endif %}" data-i18n="torBanner">
+            NODO TOR DETECTADO
+          </div>
+        </div>
+        <div class="score-ring" style="--score-offset: {{ score_offset }};">
+          <svg viewBox="0 0 190 190" aria-label="Threat Score">
+            <circle class="score-bg" cx="95" cy="95" r="80"></circle>
+            <circle class="score-fg" cx="95" cy="95" r="80"></circle>
+          </svg>
+          <div class="score-center">
+            <div class="score-number">{{ score }}</div>
+            <div class="score-label">Threat Score</div>
+          </div>
+        </div>
+      </div>
+
+      <section class="kpis">
+        <div class="card kpi">
+          <div class="kpi-value">{{ abuse.get("totalReports", 0) }}</div>
+          <div class="kpi-label" data-i18n="abuseReports">Reportes de abuso</div>
+        </div>
+        <div class="card kpi">
+          <div class="kpi-value">{{ threat.get("pulse_count", 0) }}</div>
+          <div class="kpi-label" data-i18n="otxPulses">Pulsos OTX</div>
+        </div>
+        <div class="card kpi">
+          <div class="kpi-value">{{ ports.get("count", 0) }}</div>
+          <div class="kpi-label" data-i18n="openPorts">Puertos abiertos</div>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-i18n="geoMap">Geolocalización</h2>
+        <div id="map"></div>
+      </section>
+
+      <section>
+        <h2 data-i18n="attackTimeline">Categorías de ataque</h2>
+        <div class="timeline">
+          {% set categories = abuse.get("categories", []) %}
+          {% for label, icon, value in [("Abuso reportado", "⚠", abuse.get("abuseConfidenceScore", 0)), ("Reportes", "▣", [abuse.get("totalReports", 0), 100]|min), ("OTX", "◎", [threat.get("pulse_count", 0) * 20, 100]|min), ("Puertos sensibles", "⌁", [ports.get("count", 0) * 18, 100]|min), ("Categorías", "◇", [categories|length * 16, 100]|min)] %}
+          <div class="bar-row">
+            <div>{{ icon }} {{ label }}</div>
+            <div class="bar-track"><div class="bar-fill" style="--w: {{ value }}%;"></div></div>
+            <div class="mono">{{ value }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section>
+        <h2 data-i18n="cloudContext">Contexto cloud</h2>
+        <div class="cloud-grid">
+          {% for provider, icon in [("AWS", "☁"), ("Azure", "⬡"), ("GCP", "◆"), ("Cloudflare", "▲"), ("Tor", "⬤")] %}
+          <div class="card cloud-card {% if cloud.get('provider') == provider or (provider == 'Tor' and tor.get('is_tor')) %}active{% endif %}">
+            <div class="cloud-icon">{{ icon }}</div>
+            <strong>{{ provider }}</strong>
+            <div class="muted">{% if cloud.get('provider') == provider or (provider == 'Tor' and tor.get('is_tor')) %}Detectado{% else %}Sin coincidencia{% endif %}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section>
+        <h2 data-i18n="ports">Puertos</h2>
+        <table class="card">
+          <thead><tr><th>Puerto</th><th>Servicio</th><th>Producto</th><th>Severidad</th></tr></thead>
+          <tbody>
+            {% for item in ports.get("open_ports", []) %}
+            <tr class="{{ item.severity }}">
+              <td class="mono">{{ item.port }}/{{ item.protocol }}</td>
+              <td>{{ item.service }}</td>
+              <td>{{ item.product or "-" }}</td>
+              <td>{{ item.severity }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">No se detectaron puertos abiertos o la fase fue omitida.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2 data-i18n="recommendations">Recomendaciones</h2>
+        <div class="recommendations">
+          <div class="card rec"><span data-i18n="rec1">Bloquear la IP en firewall perimetral y WAF si el score es medio o superior.</span><span class="priority p-high">Alta</span></div>
+          <div class="card rec"><span data-i18n="rec2">Añadir la IP a listas de vigilancia del SIEM con correlación de intentos de autenticación.</span><span class="priority p-high">Alta</span></div>
+          <div class="card rec"><span data-i18n="rec3">Reportar evidencia al ISP o proveedor cloud si hay reportes de abuso consistentes.</span><span class="priority p-medium">Media</span></div>
+          <div class="card rec"><span data-i18n="rec4">Revisar exposición de servicios sensibles y cerrar RDP, SSH, bases de datos o paneles públicos.</span><span class="priority p-high">Alta</span></div>
+          <div class="card rec"><span data-i18n="rec5">Guardar este JSON como artefacto de investigacion e incorporarlo al caso de respuesta.</span><span class="priority p-low">Baja</span></div>
+        </div>
+      </section>
+
+      <section>
+        <h2 data-i18n="rawData">Datos raw por fase</h2>
+        {% for phase, data in payload.results.items() %}
+        <details>
+          <summary>{{ phase }}</summary>
+          <pre>{{ data | tojson(indent=2) }}</pre>
+        </details>
+        {% endfor %}
+      </section>
+    </main>
+
+    <footer>
+      <div>SENTINEL OSINT</div>
+      <div class="mono">{{ payload.timestamp }}</div>
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const rawData = {{ payload | tojson }};
+    const geo = rawData.results.geo || {};
+    const translations = {
+      es: {
+        export: "Exportar JSON",
+        threatLevel: "Nivel de amenaza",
+        torBanner: rawData.results.tor && rawData.results.tor.is_tor ? "NODO TOR DETECTADO" : "VPN/PROXY DETECTADO",
+        abuseReports: "Reportes de abuso",
+        otxPulses: "Pulsos OTX",
+        openPorts: "Puertos abiertos",
+        geoMap: "Geolocalización",
+        attackTimeline: "Categorías de ataque",
+        cloudContext: "Contexto cloud",
+        ports: "Puertos",
+        recommendations: "Recomendaciones",
+        rawData: "Datos raw por fase",
+        rec1: "Bloquear la IP en firewall perimetral y WAF si el score es medio o superior.",
+        rec2: "Añadir la IP a listas de vigilancia del SIEM con correlación de intentos de autenticación.",
+        rec3: "Reportar evidencia al ISP o proveedor cloud si hay reportes de abuso consistentes.",
+        rec4: "Revisar exposición de servicios sensibles y cerrar RDP, SSH, bases de datos o paneles públicos.",
+        rec5: "Guardar este JSON como artefacto de investigacion e incorporarlo al caso de respuesta."
+      },
+      ru: {
+        export: "Экспорт JSON",
+        threatLevel: "Уровень угрозы",
+        torBanner: rawData.results.tor && rawData.results.tor.is_tor ? "ОБНАРУЖЕН УЗЕЛ TOR" : "ОБНАРУЖЕН VPN/PROXY",
+        abuseReports: "Жалобы на злоупотребления",
+        otxPulses: "Пульсы OTX",
+        openPorts: "Открытые порты",
+        geoMap: "Геолокация",
+        attackTimeline: "Категории атак",
+        cloudContext: "Облачный контекст",
+        ports: "Порты",
+        recommendations: "Рекомендации",
+        rawData: "Сырые данные по фазам",
+        rec1: "Заблокировать IP на периметровом firewall и WAF при среднем риске или выше.",
+        rec2: "Добавить IP в SIEM-листы наблюдения с корреляцией попыток аутентификации.",
+        rec3: "Передать доказательства ISP или cloud-провайдеру при устойчивых жалобах на злоупотребления.",
+        rec4: "Проверить экспозицию чувствительных сервисов и закрыть публичные RDP, SSH, базы данных и панели.",
+        rec5: "Сохранить JSON как артефакт расследования и приложить к кейсу реагирования."
+      }
+    };
+
+    function countryFlag(code) {
+      if (!code || code.length !== 2) return "";
+      return code.toUpperCase().replace(/./g, char => String.fromCodePoint(127397 + char.charCodeAt(0)));
+    }
+
+    document.getElementById("flag").textContent = countryFlag(geo.countryCode);
+    document.getElementById("exportJson").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(rawData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sentinel_${rawData.ip}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("langSelect").addEventListener("change", event => {
+      const lang = event.target.value;
+      document.documentElement.lang = lang;
+      document.querySelectorAll("[data-i18n]").forEach(node => {
+        const key = node.getAttribute("data-i18n");
+        if (translations[lang][key]) node.textContent = translations[lang][key];
+      });
+    });
+
+    if (Number.isFinite(geo.lat) && Number.isFinite(geo.lon)) {
+      const map = L.map("map", { zoomControl: true, attributionControl: true }).setView([geo.lat, geo.lon], 8);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: "&copy; OpenStreetMap &copy; CARTO",
+        maxZoom: 19
+      }).addTo(map);
+      const icon = L.divIcon({ className: "", html: '<div class="pulse-marker"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+      L.marker([geo.lat, geo.lon], { icon }).addTo(map).bindPopup(`${rawData.ip}<br>${geo.city || ""} ${geo.country || ""}`);
+    } else {
+      document.getElementById("map").innerHTML = '<div style="padding:24px;color:#8B949E">Geolocalización no disponible.</div>';
+    }
+  </script>
+</body>
+</html>
