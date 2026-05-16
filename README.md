@@ -107,18 +107,18 @@ SENTINEL and DOMINUS are designed to work together as a complete reconnaissance 
 3. Cross-reference findings → complete threat picture
 ```
 
-**Example with evolve.es:**
+**Example with example.es:**
 
 ```bash
 # Step 1: DOMINUS maps the domain
-python dominus.py evolve.es --only dns
-# DNS records reveal two IPs: 79.137.114.210 and 54.38.163.115
+python dominus.py example.es --only dns
+# DNS records reveal two IPs: XX.XXX.XXX.XXX and XX.XX.XXX.XXX
 
 # Step 2: SENTINEL profiles each IP
-python sentinel.py 79.137.114.210
+python sentinel.py XX.XXX.XXX.XXX
 # → OVH/Wetopi · Spain · Threat Score 2/100 · Clean
 
-python sentinel.py 54.38.163.115
+python sentinel.py XX.XX.XXX.XXX
 # → OVH/Wetopi · Netherlands · Threat Score 2/100 · Clean
 ```
 
